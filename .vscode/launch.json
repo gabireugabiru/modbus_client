@@ -1,0 +1,56 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [ 
+        {
+            "name": "custom read example",
+            "request": "launch",
+            "type": "dart",
+            "program": "example\\custom_request_example.dart"
+        },
+        {
+            "name": "read example",
+            "request": "launch",
+            "type": "dart",
+            "program": "example\\read_request_example.dart"
+        },
+        {
+            "name": "read group example",
+            "request": "launch",
+            "type": "dart",
+            "program": "example\\read_group_request_example.dart"
+        },
+        {
+            "name": "write example",
+            "request": "launch",
+            "type": "dart",
+            "program": "example\\write_request_example.dart"
+        },
+        {
+            "name": "endianness example",
+            "request": "launch",
+            "type": "dart",
+            "program": "example\\endianness_example.dart"
+        },
+        {
+            "name": "file records example",
+            "request": "launch",
+            "type": "dart",
+            "program": "example\\file_records_request_example.dart"
+        },
+        {
+            "name": "bytes register example",
+            "request": "launch",
+            "type": "dart",
+            "program": "example\\bytes_register_example.dart"
+        },
+        {
+            "name": "Huawei SUN2000 example",
+            "request": "launch",
+            "type": "dart",
+            "program": "example\\huawei_sun2000_example.dart"
+        }
+    ]
+}
