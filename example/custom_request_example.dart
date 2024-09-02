@@ -8,6 +8,7 @@ void main() async {
 
   // Create your own element type by defining your custom read & write function codes
   ModbusElementType myCustomType = ModbusElementType(
+      false,
       ModbusFunctionCode(0x04, FunctionType.read),
       ModbusFunctionCode(0x06, FunctionType.writeSingle),
       ModbusFunctionCode(0x10, FunctionType.writeMultiple));
