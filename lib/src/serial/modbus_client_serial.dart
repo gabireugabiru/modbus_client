@@ -54,83 +54,87 @@ abstract class ModbusClientSerial extends ModbusClient {
   @override
   Future<ModbusResponseCode> send(ModbusRequest request) async {
     Duration resTimeout = getResponseTimeout(request);
-    var res = await _lock.synchronized(() async {
-      // Connect if needed
-      try {
-        if (connectionMode != ModbusConnectionMode.doNotConnect) {
-          await connect();
-        }
-        if (!isConnected) {
+    try {
+      var res = await _lock.synchronized(() async {
+        // Connect if needed
+        try {
+          if (connectionMode != ModbusConnectionMode.doNotConnect) {
+            await connect();
+          }
+          if (!isConnected) {
+            return ModbusResponseCode.connectionFailed;
+          }
+        } catch (ex) {
+          ModbusAppLogger.severe(
+              "Unexpected exception in connecting to ${serialPort.name}", ex);
           return ModbusResponseCode.connectionFailed;
         }
-      } catch (ex) {
-        ModbusAppLogger.severe(
-            "Unexpected exception in connecting to ${serialPort.name}", ex);
-        return ModbusResponseCode.connectionFailed;
-      }
 
-      // Reset this request in case it was already used before
-      request.reset();
+        // Reset this request in case it was already used before
+        request.reset();
 
-      // Start a stopwatch for the request timeout
-      final reqStopwatch = Stopwatch()..start();
+        // Start a stopwatch for the request timeout
+        final reqStopwatch = Stopwatch()..start();
 
-      // Send the request data
-      var unitId = getUnitId(request);
-      try {
-        // Flush both tx & rx buffers (discard old pending requests & responses)
-        await serialPort.flush();
+        // Send the request data
+        var unitId = getUnitId(request);
+        try {
+          // Flush both tx & rx buffers (discard old pending requests & responses)
+          await serialPort.flush();
 
-        // Sent the serial telegram
-        var reqTxData = _getTxTelegram(request, unitId);
-        int txDataCount =
-            await serialPort.write(reqTxData, timeout: resTimeout);
-        if (txDataCount < reqTxData.length) {
-          request.setResponseCode(ModbusResponseCode.requestTimeout);
+          // Sent the serial telegram
+          var reqTxData = _getTxTelegram(request, unitId);
+          int txDataCount =
+              await serialPort.write(reqTxData, timeout: resTimeout);
+          if (txDataCount < reqTxData.length) {
+            request.setResponseCode(ModbusResponseCode.requestTimeout);
+            return request.responseCode;
+          }
+        } catch (ex) {
+          ModbusAppLogger.severe(
+              "Unexpected exception in sending data to ${serialPort.name}", ex);
+          request.setResponseCode(ModbusResponseCode.requestTxFailed);
           return request.responseCode;
         }
-      } catch (ex) {
-        ModbusAppLogger.severe(
-            "Unexpected exception in sending data to ${serialPort.name}", ex);
-        request.setResponseCode(ModbusResponseCode.requestTxFailed);
+
+        // Lets check the response header (i.e.read first bytes only to check if
+        // response is normal or has error)
+        var response = _ModbusSerialResponse(
+            request: request,
+            unitId: unitId,
+            checksumByteCount: checksumByteCount);
+        Duration remainingTime = resTimeout - reqStopwatch.elapsed;
+        var responseCode = remainingTime.isNegative
+            ? ModbusResponseCode.requestTimeout
+            : await _readResponseHeader(response, remainingTime);
+        if (responseCode != ModbusResponseCode.requestSucceed) {
+          request.setResponseCode(responseCode);
+          return request.responseCode;
+        }
+
+        // Lets wait the rest of the PDU response
+        remainingTime = resTimeout - reqStopwatch.elapsed;
+        responseCode = remainingTime.isNegative
+            ? ModbusResponseCode.requestTimeout
+            : await _readResponsePdu(response, remainingTime);
+        if (responseCode != ModbusResponseCode.requestSucceed) {
+          request.setResponseCode(responseCode);
+          return request.responseCode;
+        }
+
+        // Set the request response based on received PDU
+        request.setFromPduResponse(response.pdu);
+
         return request.responseCode;
+      }, timeout: resTimeout);
+      // Need to disconnect?
+      if (connectionMode == ModbusConnectionMode.autoConnectAndDisconnect) {
+        await disconnect();
       }
-
-      // Lets check the response header (i.e.read first bytes only to check if
-      // response is normal or has error)
-      var response = _ModbusSerialResponse(
-          request: request,
-          unitId: unitId,
-          checksumByteCount: checksumByteCount);
-      Duration remainingTime = resTimeout - reqStopwatch.elapsed;
-      var responseCode = remainingTime.isNegative
-          ? ModbusResponseCode.requestTimeout
-          : await _readResponseHeader(response, remainingTime);
-      if (responseCode != ModbusResponseCode.requestSucceed) {
-        request.setResponseCode(responseCode);
-        return request.responseCode;
-      }
-
-      // Lets wait the rest of the PDU response
-      remainingTime = resTimeout - reqStopwatch.elapsed;
-      responseCode = remainingTime.isNegative
-          ? ModbusResponseCode.requestTimeout
-          : await _readResponsePdu(response, remainingTime);
-      if (responseCode != ModbusResponseCode.requestSucceed) {
-        request.setResponseCode(responseCode);
-        return request.responseCode;
-      }
-
-      // Set the request response based on received PDU
-      request.setFromPduResponse(response.pdu);
-
-      return request.responseCode;
-    });
-    // Need to disconnect?
-    if (connectionMode == ModbusConnectionMode.autoConnectAndDisconnect) {
-      await disconnect();
+      return res;
+    } catch (err) {
+      return ModbusResponseCode.requestTimeout;
     }
-    return res;
   }
 
   /// Connect the port if not already done or disconnected
