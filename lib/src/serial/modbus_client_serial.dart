@@ -46,7 +46,7 @@ abstract class ModbusClientSerial extends ModbusClient {
   Future<void> disconnect() async {
     ModbusAppLogger.fine("Closing serial port ${serialPort.name}...");
     if (serialPort.isOpen) {
-      serialPort.close();
+      await serialPort.close();
     }
   }
 
